@@ -16,8 +16,6 @@ Below is an overview of the project structure and the purpose of each file:
 ### Root Directory
 
 - **`template.yaml`**: The primary CloudFormation template for defining the AWS resources required by this project.
-- **`template_good.yaml`**: A validated and enhanced version of the main template, likely used as a reference or fallback.
-- **`template copy.yaml`**: A backup or alternate copy of the CloudFormation template for testing or iteration.
 - **`README.md`**: Documentation file for understanding and working with the project.
 - **`.gitignore`**: Specifies files and directories to be ignored by Git, preventing unnecessary or sensitive files from being committed.
 
