@@ -5,6 +5,10 @@
 This project is maintained by **Stephen Abbot**.  
 Feel free to connect with me on [LinkedIn](https://www.linkedin.com/in/stephen-abbot) to discuss this project or other topics.
 
+## Github repository
+
+[aws-cloudformation-t3-micro](https://github.com/stabbotco1/aws-cloudformation-t3-micro)
+
 ## Project Structure
 
 Below is an overview of the project structure and the purpose of each file:
