@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create a basic VPC with an Internet Gateway and deploy a Spot Instance with SSM access only"
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: "aws-cloudformation-t3-micro"
+    Description: "The project name for tagging resources"
+  AmiImage:
+    Type: String
+    Description: "Amazon Linux 2 AMI ID for the Spot Instance"
+
+Resources:
+  # VPC
+  s3VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-VPC"
+        - Key: "ProjectName"
+          Value: !Ref ProjectName
+
+  # Internet Gateway
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-InternetGateway"
+        - Key: "ProjectName"
+          Value: !Ref ProjectName
+
+  # Attach Internet Gateway to VPC
+  AttachGateway:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref s3VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public Subnet
+  PublicSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref s3VPC
+      CidrBlock: "10.0.1.0/24"
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-PublicSubnet1"
+        - Key: "ProjectName"
+          Value: !Ref ProjectName
+
+  # Route Table
+  PublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref s3VPC
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-PublicRouteTable"
+        - Key: "ProjectName"
+          Value: !Ref ProjectName
+
+  # Route to Internet Gateway
+  PublicRoute:
+    Type: "AWS::EC2::Route"
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+
+  RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  # Security Group for the Instance
+  InstanceSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security group for SSM access"
+      VpcId: !Ref s3VPC
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"  # Allowing access from all IPs (adjust as needed for your use case)
+      SecurityGroupEgress:
+        - IpProtocol: "-1"  # Allow all outbound traffic
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-InstanceSecurityGroup"
+        - Key: "ProjectName"
+          Value: !Ref ProjectName
+
+  # IAM Role for SSM
+  SSMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      Tags:
+        - Key: "ProjectName"
+          Value: !Ref ProjectName
+
+  # Instance Profile for EC2
+  InstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - !Ref SSMRole
+      InstanceProfileName: !Sub "${AWS::StackName}-EC2SSMInstanceProfile"
+
+  # Spot Instance
+  SpotInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      InstanceType: "t3.micro"
+      ImageId: !Ref AmiImage
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-SpotInstance"
+        - Key: "ProjectName"
+          Value: !Ref ProjectName
+
+Outputs:
+  VPCId:
+    Description: "The ID of the created VPC"
+    Value: !Ref s3VPC
+  SubnetId:
+    Description: "The ID of the public subnet"
+    Value: !Ref PublicSubnet1
+  InstanceId:
+    Description: "The ID of the Spot Instance"
+    Value: !Ref SpotInstance
+  InstancePublicIP:
+    Description: "The Public IP of the Spot Instance"
+    Value: !GetAtt SpotInstance.PublicIp
